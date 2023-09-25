@@ -1,11 +1,5 @@
 import numpy as np
-from ImportingPackages import *
-from SimulationParametersCritical import *
-from AuxiliarFunctions import *
-from NeuronModelsVarDrive import *
-from SetupModels import *
-import brian2 as b2
-######################################################
+
 def compute_SPC_R2_meanFR(
     spbins,      #STH 1ms/bin
     ksigma= 3.,  #sigma for Gaussian to smooth FR
@@ -21,8 +15,8 @@ def compute_SPC_R2_meanFR(
     
     Ruben Tikidji-Hamburyan (LSUHSC, GWU, 2013-2021)
     """
-    #print("==================================")
-    #print("===         Peak Detector      ===")
+    print("==================================")
+    print("===         Peak Detector      ===")
     kernel = np.arange(-kwidth,kwidth,1.)
     kernel = np.exp(kernel**2/(-ksigma**2))
     module = np.convolve(spbins,kernel,mode='same')
@@ -47,8 +41,8 @@ def compute_SPC_R2_meanFR(
     else:
         spbinmark = None
         
-    #print("==================================")
-    #print("===             R2             ===")
+    print("==================================")
+    print("===             R2             ===")
 
     if ccnt > 0:
         spc = spc /ccnt
@@ -77,10 +71,30 @@ def compute_SPC_R2_meanFR(
         netpermean /= ( netpercnt - 1)
     else:
         netpermean = None
-    #print("  > R2       =           ",R2)
-    #print("  > SPC      =           ",spc)
-    #print("  > netPmean =           ",netpermean)
-    #print("==================================\n")
+    print("  > R2       =           ",R2)
+    print("  > SPC      =           ",spc)
+    print("  > netPmean =           ",netpermean)
+    print("==================================\n")
     return (spc,R2,netpermean,peakmark) if peaks else (spc,R2,netpermean)
 
+if __name__ == "__main__":
+    from matplotlib.pyplot import *
+    sth = np.zeros(2000)
+    nt  = np.random.exponential(1000/30)
+    na  = np.random.randn()*30 + 300
+    while nt < 2000:
+        p   = np.arange(2000)
+        p   = np.exp(-(p-nt)**2/900)*na#+np.random.rand(2000)*30
+        p[np.where(p<0)] = 0
+        sth+= p
+        nt += np.random.exponential(1000/30)
+        na  = np.random.randn()*30 + 300
+    p   = np.arange(2000)
+    plot(p,sth,'k-')
+    spc,R2,netpermean,peakmark = compute_SPC_R2_meanFR(sth,peaks=True)
+    for p in peakmark:
+        a = sth[int(p)]
+        plot([p,p],[a-30,a+30],'r--')
+    
+    show()
 

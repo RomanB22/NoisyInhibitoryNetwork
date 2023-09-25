@@ -35,51 +35,40 @@ I0Folder : Folder where save and load the .csv files with the results for the DC
 f : Frequency of the theta drive
 
 """
-import brian2 as b2
-import sys, os
-import numpy as np
-
 
 b2.seed(7896) # Set random seed to have reproducible results!
 
-ChosenModel = 4 #Models = {0:'IzhiTypeI', 1:'IzhiTypeII', 2:'LIFModel', 3:'AdExModel', 4:'GuillemModel', 5:'ModifiedIzhiTyII', 6:'WangBuzsaki'}
+ChosenModel = 0 #Models = {0:'IzhiTypeI', 1:'IzhiTypeII', 2:'LIFModel', 3:'AdExModel', 4:'GuillemModel'}
 ChosenSubmodelAdEx = 2 #SubModelsAdEx = {0:'TypeI', 1:'TypeIISaddleNode', 2:'TypeIIAndronovHopf'}
 ThetaInput = False
 FirstBisection = False # First run calculating Iext for N=800. This results serve as input for the second bisection search
-VariableDrive = True
-Physiological = False
-ConductanceBased = True 
-UniformReversal = False
-Esyn = -55.0001*b2.mV#-75.*b2.mV; #shunting -55 mV, hyperpolarizing = -75 mV
+
 
 alphaAux = [1]# Scaling for the synaptic times
-NAux = [800,1400,2200,3000]
-Nu0Aux = [30.]
+NAux = [2200]#[800,1000,1400,1800,2200,3000]
+Nu0Aux = [30]
 ConnectionProbAux = [1]
-InCond = ['cluster',1]#'random' or 'cluster' and second element is number of clusters
+InCond = ['cluster',1] #'random' or 'cluster' and second element is number of clusters
 f = 8*b2.Hz # Frequency of the theta drive
 IntegrationStep = 0.05 #in ms IntegrationStepGuillem = 0.01 and AdEx Type II Chattering (Andronov-Hopf Bifurcation)
-transientTime = 1500*b2.ms#1500*b2.ms#900*b2.ms#1600*b2.ms #Time until the network reaches the stationary state
-simulationEnd = 1900*b2.ms#1900*b2.ms#1300*b2.ms#2200*b2.ms #Time of simulation end
-PlotingTime = 200 #Time which is going to be plotted (in ms). Between 200 and 400 ms is okay. The interval goes between [simulationEnd-PlotingTime, simulationEnd]
-SavingTime = 400*b2.ms #Time interval of the variables measured in the simulation to save. Be careful to use so much time here, because the size of all the generated .csv files could be huge. Maximum around 400 ms is okay. Interval is [simulationEnd-SavingTime, simulationEnd]
-Neurons2Save = 1 #How many neurons to fully follow across the simulation time. Same as before, too much neurons creates huge .csv files
-ChosenNeuronModelGuillem = 57 # 43 is Ananth using
+transientTime = 900*b2.ms#1500*b2.ms #Time until the network reaches the stationary state
+simulationEnd = 1200*b2.ms#1800*b2.ms #Time of simulation end
+PlotingTime = 300 #Time which is going to be plotted (in ms). Between 200 and 400 ms is okay. The interval goes between [simulationEnd-PlotingTime, simulationEnd]
+SavingTime = 300*b2.ms #Time interval of the variables measured in the simulation to save. Be careful to use so much time here, because the size of all the generated .csv files could be huge. Maximum around 400 ms is okay. Interval is [simulationEnd-SavingTime, simulationEnd]
+Neurons2Save = 5 #How many neurons to fully follow across the simulation time. Same as before, too much neurons creates huge .csv files
+ChosenNeuronModelGuillem = 57 # Maximum membrane time constant, equal to 6.96 ms
+
+sigmaAux = [0.0141, 0.0168, 0.0237, 0.0282, 0.0335, 0.0282, 0.0237, 0.0282, 0.0335, 0.0398, 0.0562, 0.0398, 0.0562, 0.0794, 0.0473, 0.0668, 0.0794, 0.0668, 0.0944, 0.0794, 0.1334, 0.1884, 0.1334, 0.1585, 0.1334, 0.1884, 0.2239, 0.261, 0.261, 0.2661, 0.261, 0.3162]
+#np.sort(np.concatenate((np.around(np.logspace(-2,1,41,endpoint=True),4),np.linspace(0.011,10.011,41, endpoint=True))))
+
+JAux = [1.6, 2.0, 2.0, 2.5, 2.5, 3.0, 3.2, 5.0, 5.0, 5.0, 5.0, 6.3, 7.9, 7.9, 8.0, 8.0, 10.0, 12.6, 13.0, 15.8, 18.0, 18.0, 20.0, 20.0, 23.0, 25.1, 25.1, 25.1, 28.0, 28.0, 31.6, 31.6]
+#np.sort(np.concatenate((np.around(np.logspace(0,2,21,endpoint=True),1),np.linspace(3,153,31, endpoint=True))))
+
+#ParametersListAux = [(sLoop, jLoop, aLoop, NLoop, CPLoop, Nu0Loop) for sLoop in sigmaAux for jLoop in JAux for aLoop in alphaAux for NLoop in NAux for CPLoop in ConnectionProbAux for Nu0Loop in Nu0Aux]
+
+ParametersListAux = [(sLoop, jLoop, aLoop, NLoop, CPLoop, Nu0Loop) for (sLoop,jLoop) in zip(sigmaAux,JAux) for aLoop in alphaAux for NLoop in NAux for CPLoop in ConnectionProbAux for Nu0Loop in Nu0Aux]
 
 tau_m = 10.*b2.ms
-
-#sigmaAux = np.around(np.linspace(0.011,10.011,51, endpoint=True),4)
-#JAux = np.around(np.logspace(0,2,21,endpoint=True),1)#Plane I0xJ
-#JAux = [1.,5.,10.,15.,20.,25.,30.,35.,40.,45.,50.,55.] #[1.,20.,40.,60.,80.,100.,120.,140.]#np.around(np.logspace(0,2,11,endpoint=True),1)#Plane I0xsigma
-#I0Aux = [0.,5.,10.,15.,20.,25.,30.,35.,40.]
-
-#Conductance based
-sigmaAux = np.sort( np.concatenate( (np.around(np.linspace(10.011,15.011,11,endpoint=True),4),np.around(np.linspace(0.011,10.011,51, endpoint=True),4)) ) )#np.around(np.linspace(10.011,15.011,11,endpoint=True))
-JAux = [800.,1000.] #[1.,20.,40.,60.,80.,100.,120.,140.,160.,180.,250.,300.]@2.,4.,6.,8.,10.,12.,14.,16.,18.,200.,220.,1.,20.,40.,60.,80.,100.,120.,140.,160.,180.,250.,300.
-I0Aux = [60.,75.]#[0.,5.,10.,16.,20.,25.,30.,2.03125,3.59375,3.984375,4.2773,7.685547,15.29297] #[1.,4.,7.,10.,13.,16.,19.,22.,25.,28.]#[30.,40.,45.,50.,55.,60.,65.,70.,75.,80.]
-
-ParametersListAux = [(sLoop, jLoop, aLoop, NLoop, CPLoop, I0Loop) for sLoop in sigmaAux for jLoop in JAux for aLoop in alphaAux for NLoop in NAux for CPLoop in ConnectionProbAux for I0Loop in I0Aux]
-
 
 # For Tigerfish use
 maxArray = 1000 # Number of parallel array jobs sended to SLURM

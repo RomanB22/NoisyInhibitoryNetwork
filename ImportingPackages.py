@@ -14,7 +14,6 @@ import scipy.stats
 import itertools as it
 import re # Module for treating with regular expressions
 import seaborn as sns
-from scipy import spatial
 
 TigerFish = True
 if TigerFish: 	# For Tigerfish use only

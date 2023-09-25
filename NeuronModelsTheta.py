@@ -1,7 +1,3 @@
-from ImportingPackages import *
-from SimulationParametersCritical import *
-import numpy as np
-import brian2 as b2
 """
 Define the biexponential synapse model. Same for all simulated networks 
 
@@ -23,36 +19,6 @@ synaps_eqs = '''
 synaps_action = 'x += DeltaX' # This statement says after a spike, increase x in postsynaptic neuron by DeltaX 
 
 """
-Define the new biexponential synapse model. Same for all simulated networks 
-
-Parameters
-----------
-s : postsynaptic current
-x : auxiliary variable
-DeltaX : increment of the variable x after a spike
-tau_d : decay time of the postsynaptic current
-tau_r : rise time of the postsynaptic current
-
-"""
-tau_fall = 2.*b2.ms
-tau_rise = 0.3*b2.ms
-gms = 1.65*b2.nS
-delays = 0.8*b2.ms
-# Normalizing factor for the IPSC conductance height
-c_fall = 1./tau_fall; c_rise = 1./tau_rise
-
-norm_syn = 1./( np.exp(-c_fall*np.log(c_rise/c_fall)/(c_rise-c_fall)) - np.exp(-c_rise*np.log(c_rise/c_fall)/(c_rise-c_fall)) )
-
-
-Tot_eqsVia = '''
-                     Isyn = -(v-Esyn)*norm_syn*(g_fall-g_rise) : ampere
-                     dg_fall/dt = -g_fall/tau_fall : siemens
-                     dg_rise/dt = -g_rise/tau_rise : siemens
-             ''' 
-synaps_eqsVia = "DeltaX : siemens"
-synaps_actionVia = 'g_fall_post+=DeltaX;g_rise_post+=DeltaX' #
-
-"""
 Define the total input to a neuron, comprising the external "current" (measured in mV as in Brunel 2006), the total recurrent input and the noisy current.
 
 Parameters
@@ -67,14 +33,17 @@ stot : total postsynaptic current, without units. The synapses are current-based
 sigma : noise amplitude, in mV
 
 """
+ExcInhTheta = "Exc" # Depending on wheter Theta input is above or below background input
 
-ExcInput = "I0 = Iext : volt"+"\n""Iext : volt"
-#ExcInput = "I0 = Iext*(1.+1.*sin(2*pi*f*t)) : volt"+"\n""Iext : volt"
+factorI0 = 1./1.
 
-if ConductanceBased:
-	TotalInput = " + I0/tau_m + sigma/sqrt(tau_m)*xi : volt" + "\n" + Tot_eqsVia +"\n"+"stot : 1"+"\n"+ExcInput     
-else:
-	TotalInput = " + I0/tau_m + RecurrentInput/tau_m + sigma/sqrt(tau_m)*xi : volt" + "\n" + "RecurrentInput = - J/N * stot : volt"+"\n"+"stot : 1"+"\n"+ExcInput
+ExcInput = "I0 = 0.*mV*int(t<=1500*ms)+factorI0*Iext/2.*(1.+sin(2*pi*f*(t-1500*ms)-pi/2))*int(t>1500*ms)*int(t<=2500*ms)+0.*mV*int(t>2500*ms) : volt"+"\n""Iext : volt"
+InhInput = "I0 = Iext*int(t<=1500*ms)+Iext/2.*(1.+sin(2*pi*f*(t-1500*ms)+pi/2))*int(t>1500*ms)*int(t<=2500*ms)+Iext*int(t>2500*ms) : volt"+"\n""Iext : volt"
+IntermediateInput = "I0 = 0.*mV*int(t<=1500*ms)+Iext*int(t>1500*ms)*int(t<=2500*ms)+0.*mV*int(t>2500*ms) : volt"+"\n""Iext : volt"
+
+
+TotalInput = " + factorI0*I0/tau_m + RecurrentInput/tau_m + sigma/sqrt(tau_m)*xi : volt" + "\n" + "RecurrentInput = - J/N * stot : volt"+"\n"+"stot : 1"+"\n"+ExcInput
+	     
 
 """
 Define the equations of the Izhikevich resonator Type II model. Some parameters are settled in SimulationParameters.py (sigma, J, N)
@@ -94,23 +63,21 @@ dIzTyII : recovery variable after-spike adaptation, in mV
 
 """
 
-IzhiTypeII = "dv/dt = 0.04/mV/ms * v*v + 5/ms *v + 140*mV/ms - u/pF" + TotalInput + "\n" + "du/dt = aIzTyII*(bIzTyII*v-u) : ampere"
-
-#IzhiTypeII = "dv/dt = 0.04/mV/ms*1000 * v*v + 5/ms*1000 *v + 140*mV/ms*1000 - u/uF" + TotalInput + "\n" + "du/dt = aIzTyII*(bIzTyII*v-u) : ampere"
+IzhiTypeII = "dv/dt = 0.04*nS/mV/pF * v*v + 5*nS/pF *v + 140*mV*nS/pF - u/pF" + TotalInput + "\n" + "du/dt = aIzTyII*(bIzTyII*v-u) : ampere"
+#-1/5*5 1/23*140
 
 threshold_condIzhiTypeII = "v > v_thIzTyII"
 reset_condIzhiTypeII = "v = v_rIzTyII; u += dIzTyII"
 
 v0IzTyII, u0IzTyII, v_thIzTyII, v_rIzTyII = -60.*b2.mV, -15*b2.pA, 30.*b2.mV, -60.*b2.mV
 
-aIzTyII, bIzTyII, cIzTyII, dIzTyII = 0.1/b2.ms, 0.26*b2.nS, -60.*b2.mV, 0*b2.pA
+aIzTyIINorm, bIzTyII, cIzTyII, dIzTyII = 0.1/b2.ms, 0.26*b2.nS, -60.*b2.mV, 0*b2.pA
 
 aIzTyIIMod = 0.1/b2.ms
-v0IzTyIIMod, v_rIzTyIIMod = -60*b2.mV, -60*b2.mV,
+v0IzTyIIMod, v_rIzTyIIMod = -20*b2.mV, -20*b2.mV,
 u0IzTyIIMod = -15.*b2.pA
 
-#CapIzTyII = 1.*b2.pF
-CapIzTyII = 1.*b2.uF
+CapIzTyII = 1.*b2.pF
 
 uUnitsIzTyII = 1.*b2.nA
 
@@ -136,7 +103,6 @@ k : scaling factor used to adjust the spike width after the instantaneous thresh
 """
 
 IzhiTypeI = "k = k_low*int(v <= vtIzTyI) + k_high*int(v > vtIzTyI) : siemens/volt" + "\n" + "dv/dt = (k*(v-v_rIzTyI)*(v-vtIzTyI) - u )/Cm" + TotalInput +"\n" + "du/dt = aIzTyI*(bIzTyI*(v-v_rIzTyI)-u) : ampere"
-
 		   
 threshold_condIzhiTypeI = "v > v_thIzTyI"
 reset_condIzhiTypeI = "v = v_rIzTyI; u += dIzTyI"
@@ -201,7 +167,7 @@ v_rAdExSNTypeI = -50.*b2.mV
 v_rAdExSNTypeII = -38.*b2.mV
 tau_wAdExSN, aAdExSN, bAdExSN, CAdExSN, glAdExSN, ElAdExSN, V_TAdExSN, DeltaTAdExSN = 16.*b2.ms, 1.8*b2.nS, 0.*b2.pA, 59.*b2.pF, 2.9*b2.nS, -62.*b2.mV, -42.*b2.mV, 3.*b2.mV
 
-v_rAdExAH = -58.*b2.mV
+v_rAdExAH = -65.*b2.mV
 tau_wAdExAH, aAdExAH, bAdExAH, CAdExAH, glAdExAH, ElAdExAH, V_TAdExAH, DeltaTAdExAH = 50.*b2.ms, 8.0*b2.nS, 0.*b2.pA, 150.*b2.pF, 10.*b2.nS, -58.*b2.mV, -47.5*b2.mV, 0.5*b2.mV 
 
 v0AdEx, w0AdExSN, w0AdExAH = -60.*b2.mV, .01*b2.nA, .4*b2.nA
@@ -218,7 +184,7 @@ Parameters
 # Membrane-potential dynamics equations
 gat_vars =       """
                      alpham = -((v-thm1-eps)/sigm1)/(exp(-(v-thm1-eps)/sigm1)-1.)/ms : Hz
-                     betam = km2*exp(v/sigm2)/ms : Hz
+                     betam = km2*exp(-v/sigm2)/ms : Hz
                      dm/dt = alpham*(1.-m) - betam*m : 1
 
                      alphah = kh1/exp(-v/sigh1)/ms : Hz
@@ -255,12 +221,11 @@ param_eqs =   """
                   tha1 : volt 
               """
 
-# Finally the capacitive and clamp currents
+# External currents
+ext_eqs = TotalInput
 
-if ConductanceBased:
-	currs = " ( INa + IKv3 + IKv1 + IL + Isyn)/Cap "
-else:
-	currs = " ( INa + IKv3 + IKv1 + IL )/Cap "
+# Finally the capacitive and clamp currents
+currs = " ( INa + IKv3 + IKv1 + IL )/Cap "
 
 volt_eqs = "\n dv/dt = " + currs + TotalInput
 
@@ -269,69 +234,36 @@ base_eqs = gat_vars + param_eqs
 GuillemModel = base_eqs + volt_eqs
 
 threshold_condGuillem = "v > v_th"
-eps = 1e-9*b2.mV
 
-##########################################################################
-### LOADING PARAMETERS AND SETTING UNITS
-# Set fixed and homogeneous neuron parameters
-ENa=+50.*b2.mV; EK=-90.*b2.mV;
-km2=.1; kh1=.012; kh2=.2; kn2=.001; ka2=.02;  kn1 = 1.;
-sigm1=4.*b2.mV; sigh2=3.5*b2.mV; sign1=12.*b2.mV; sigm2=-13.*b2.mV;
-sigh1=-20.*b2.mV; sign2=-8.5*b2.mV; siga1=12.*b2.mV; siga2=-80.*b2.mV;
+params = np.loadtxt("params.dat"); # Parameters: EL, Rin and tauv, gNaf, rat (=gKf/gNaf), thm1, thh2, thn1, and gKv1f, tha1
 
-# Tuned parameters with heterogeneity and properties as observed in electrophysiological recordings
-# Load neuron parameters that can be heterogeneous (need to set folder and file names)
-params_act = np.transpose(np.loadtxt( "params/intrinsic/active/params_actRoman.dat" )) # Heterogeneous active parameters: Voltage-gated current peak conductances and thetas
-folder = "original/";
-gLs = np.loadtxt( "params/intrinsic/passive/gLs/" + folder + "gLsRoman.dat" ) # Leakage conductances
-ELs = np.loadtxt( "params/intrinsic/passive/ELs/" + folder + "ELsRoman.dat" ) # Leakage reversal potentials
-tauvs = np.loadtxt( "params/intrinsic/passive/taums/taumsRomanUniform.dat" ) # Membrane time constants
+ELs, Rins, tauvs, gNafs, rats, thm1s, thh2s, thn1s, gKv1fs, tha1s = params[:,ChosenNeuronModelGuillem]
 
-NeuronModel = ChosenNeuronModelGuillem
+# Providing parameters with units
+# Effective, membrane-integrated, capacitances can be obtained from time constants and input resistances. One for each neuron in the network.
 
-Rins = 1.0e+3/gLs
-Caps = tauvs/Rins
-gNas, gKv3s, gKv1s, thm1s, thh2s, thn1s, tha1s = params_act
+#ELs = -40
+print(ELs)
+ELs = ELs*b2.mV
+Rins = Rins*b2.Mohm
+tauvs = tauvs*b2.ms
+thm1s, thh2s, thn1s, tha1s = thm1s*b2.mV, thh2s*b2.mV, thn1s*b2.mV, tha1s*b2.mV
 
-# SET HOMOGENEOUS INTRINSIC NEURONAL PARAMETERS IF DESIRED (ONLY FOR ACTIVE OR BOTH FOR ACTIVE AND PASSIVE)
-# If considering a homogeneous network, take passive parameters from a single model neuron
-gLs, ELs, tauvs, Caps = gLs[NeuronModel], ELs[NeuronModel], tauvs[NeuronModel], Caps[NeuronModel]
-# If considering a network with homogeneous intrinsic neuronal active parameters (from kneu set in the function call)
-gNas, gKv3s, gKv1s  = gNas[NeuronModel], gKv3s[NeuronModel], gKv1s[NeuronModel]
-thm1s, thh2s, thn1s, tha1s = thm1s[NeuronModel], thh2s[NeuronModel], thn1s[NeuronModel], tha1s[NeuronModel]
+# Setting parameters
 
-# Set units
-gNas = gNas*b2.nS; gKv3s = gKv3s*b2.nS; gKv1s = gKv1s*b2.nS; # Peak conductances for voltage-gated currents
-thm1s = thm1s*b2.mV; thh2s = thh2s*b2.mV; thn1s = thn1s*b2.mV; tha1s = tha1s*b2.mV;
-tauvs = tauvs*b2.ms; gLs = gLs*b2.nS; Caps = Caps*b2.nF; ELs = ELs*b2.mV; # Passive properties
-
-#print(gNas,gKv3s,gKv1s,tauvs,gLs,Caps,ELs);
-'''
-Define Wang-Buzsaki model 1996
-'''
 v_th=-30.*b2.mV; # Voltage threshold to fire a spike
-Cm = 1*b2.uF # /cm**2
-gLWB = 0.1*b2.msiemens
-ELWB = -65*b2.mV
-ENa = 55*b2.mV
-EK = -90*b2.mV
-gNaWB = 35*b2.msiemens
-gK = 9*b2.msiemens
 
-WangBuzsakiModelAux = '''
-m = alpha_m/(alpha_m+beta_m) : 1
-alpha_m = -((v+35*mV-eps)/10/mV)/(exp(-(v+35*mV-eps)/10/mV)-1.)/ms : Hz
-beta_m = 4*exp(-(v+60*mV)/(18*mV))/ms : Hz
+ENa=+50.*b2.mV; EK=-90.*b2.mV; eps = 1.e-7*b2.mV;
 
-dh/dt = alpha_h*(1-h)-beta_h*h : 1
-alpha_h = 0.21*exp(-(v+58*mV)/(20*mV))/ms : Hz
-beta_h = 3./(exp(-0.1/mV*(v+28*mV))+1)/ms : Hz
+km2=.1; kh1=.012; kh2=.2; kn2=.001; ka2=.02;
 
-dn/dt = alpha_n*(1-n)-beta_n*n : 1
-alpha_n = -0.03*(v+34*mV)/(exp(-(v+34*mV)/(10*mV))-1.)/ms/mV : Hz
-beta_n = 0.375*exp(-(v+44*mV)/(80*mV))/ms : Hz
-'''
-Area=9.6e-5
+sigm1=4.*b2.mV; sigh2=3.5*b2.mV; sign1=12.*b2.mV; sigm2=-13.*b2.mV; sigh1=-20.*b2.mV; sign2=-8.5*b2.mV; siga1=12.*b2.mV; siga2=-80.*b2.mV;
 
-WangBuzsakiModel = "dv/dt = (-gNaWB*m**3*h*(v-ENa)-gK*n**4*(v-EK)-gLWB*(v-ELWB))/Cm+Isyn/Caps" + TotalInput + "\n" + WangBuzsakiModelAux
-threshold_condWangBuzsaki = "v > v_th"
+# Capacitance
+Caps = tauvs/Rins; gLs = 1./Rins;
+
+# Active conductances
+# Heterogeneous peak conductances for active currents. Above are loaded normalized to Golomb values times capacitance.
+gNas=np.array(gNafs)*112.5e+3*b2.Hz*Caps;
+gKv3s=np.array(gNafs)*np.array(rats)*225.e+3*b2.Hz*Caps;
+gKv1s=np.array(gKv1fs)*225.e+3*b2.Hz*Caps;
